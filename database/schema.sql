@@ -1,0 +1,119 @@
+-- CIT444 Hotel Analysis Project - Database Schema
+-- Drop existing tables (if any)
+DROP TABLE ratings CASCADE CONSTRAINTS;
+DROP TABLE review CASCADE CONSTRAINTS;
+DROP TABLE hotel CASCADE CONSTRAINTS;
+DROP TABLE ratingsaverage CASCADE CONSTRAINTS;
+
+-- Drop sequences
+DROP SEQUENCE hotel_seq;
+DROP SEQUENCE review_seq;
+DROP SEQUENCE rating_seq;
+
+-- Create Hotel table
+CREATE TABLE hotel (
+    HOTELID NUMBER(38,0) PRIMARY KEY,
+    NAME VARCHAR2(200 BYTE) NOT NULL,
+    CITY VARCHAR2(100 BYTE),
+    COUNTRY VARCHAR2(100 BYTE),
+    SOURCE_FOLDER VARCHAR2(300 BYTE),
+    CREATED_DATE DATE DEFAULT SYSDATE
+);
+
+-- Create Review table
+CREATE TABLE review (
+    IDREVIEW NUMBER PRIMARY KEY,
+    HOTELID NUMBER NOT NULL,
+    REVIEW CLOB,
+    FILE_SOURCE VARCHAR2(150 BYTE),
+    LINE_NUMBER NUMBER,
+    PROCESSED_DATE DATE DEFAULT SYSDATE,
+    CONSTRAINT fk_review_hotel FOREIGN KEY (HOTELID) REFERENCES hotel (HOTELID) ON DELETE CASCADE
+);
+
+-- Create Ratings table
+CREATE TABLE ratings (
+    RATINGID NUMBER PRIMARY KEY,
+    IDREVIEW NUMBER,
+    HOTELID NUMBER,
+    SERVICE_SCORE NUMBER(2,0) CHECK (SERVICE_SCORE BETWEEN 1 AND 5),
+    PRICE_SCORE NUMBER(2,0) CHECK (PRICE_SCORE BETWEEN 1 AND 5),
+    ROOM_SCORE NUMBER(2,0) CHECK (ROOM_SCORE BETWEEN 1 AND 5),
+    LOCATION_SCORE NUMBER(2,0) CHECK (LOCATION_SCORE BETWEEN 1 AND 5),
+    OVERALL_SCORE NUMBER(2,0) CHECK (OVERALL_SCORE BETWEEN 1 AND 5),
+    ANALYSIS_DATE DATE DEFAULT SYSDATE,
+    CONSTRAINT fk_ratings_review FOREIGN KEY (IDREVIEW) REFERENCES review(IDREVIEW) ON DELETE CASCADE,
+    CONSTRAINT fk_ratings_hotel FOREIGN KEY (HOTELID) REFERENCES hotel(HOTELID) ON DELETE CASCADE
+);
+
+-- Create Ratings Average table
+CREATE TABLE ratingsaverage (
+    HOTELID NUMBER PRIMARY KEY,
+    AVG_SERVICE NUMBER(3,2),
+    AVG_PRICE NUMBER(3,2),
+    AVG_ROOM NUMBER(3,2),
+    AVG_LOCATION NUMBER(3,2),
+    AVG_OVERALL NUMBER(3,2),
+    TOTAL_REVIEWS NUMBER,
+    LAST_UPDATED DATE DEFAULT SYSDATE,
+    CONSTRAINT fk_ratingsavg_hotel FOREIGN KEY (HOTELID) REFERENCES hotel(HOTELID) ON DELETE CASCADE
+);
+
+-- Create sequences for auto-incrementing IDs
+CREATE SEQUENCE hotel_seq START WITH 1 INCREMENT BY 1 NOCACHE NOCYCLE;
+CREATE SEQUENCE review_seq START WITH 1 INCREMENT BY 1 NOCACHE NOCYCLE;
+CREATE SEQUENCE rating_seq START WITH 1 INCREMENT BY 1 NOCACHE NOCYCLE;
+
+-- Create indexes for performance
+CREATE INDEX idx_review_hotelid ON review(HOTELID);
+CREATE INDEX idx_ratings_hotelid ON ratings(HOTELID);
+CREATE INDEX idx_ratings_reviewid ON ratings(IDREVIEW);
+CREATE INDEX idx_hotel_city ON hotel(CITY);
+CREATE INDEX idx_hotel_country ON hotel(COUNTRY);
+
+-- Create a view for easy querying
+CREATE OR REPLACE VIEW hotel_ratings_view AS
+SELECT 
+    h.HOTELID,
+    h.NAME AS HOTEL_NAME,
+    h.CITY,
+    h.COUNTRY,
+    ra.AVG_SERVICE,
+    ra.AVG_PRICE,
+    ra.AVG_ROOM,
+    ra.AVG_LOCATION,
+    ra.AVG_OVERALL,
+    ra.TOTAL_REVIEWS,
+    ra.LAST_UPDATED,
+    CASE 
+        WHEN ra.AVG_OVERALL >= 4.5 THEN 'Excellent'
+        WHEN ra.AVG_OVERALL >= 4.0 THEN 'Very Good'
+        WHEN ra.AVG_OVERALL >= 3.0 THEN 'Good'
+        WHEN ra.AVG_OVERALL >= 2.0 THEN 'Fair'
+        ELSE 'Poor'
+    END AS RATING_CATEGORY
+FROM hotel h
+LEFT JOIN ratingsaverage ra ON h.HOTELID = ra.HOTELID;
+
+-- Create directory object for external files (adjust path as needed)
+CREATE OR REPLACE DIRECTORY ext_dir AS 'C:\CIT444_Final_Project\processed_data';
+-- Note: You may need to adjust this path and grant permissions:
+-- GRANT READ, WRITE ON DIRECTORY ext_dir TO your_username;
+
+-- Display table creation confirmation
+BEGIN
+    DBMS_OUTPUT.PUT_LINE('✅ Database schema created successfully!');
+    DBMS_OUTPUT.PUT_LINE('✅ Tables created: hotel, review, ratings, ratingsaverage');
+    DBMS_OUTPUT.PUT_LINE('✅ Sequences created: hotel_seq, review_seq, rating_seq');
+    DBMS_OUTPUT.PUT_LINE('✅ Indexes and view created');
+END;
+/
+
+-- Display table counts (should be 0 initially)
+SELECT 'hotel' AS table_name, COUNT(*) AS record_count FROM hotel
+UNION ALL
+SELECT 'review', COUNT(*) FROM review
+UNION ALL
+SELECT 'ratings', COUNT(*) FROM ratings
+UNION ALL
+SELECT 'ratingsaverage', COUNT(*) FROM ratingsaverage;
