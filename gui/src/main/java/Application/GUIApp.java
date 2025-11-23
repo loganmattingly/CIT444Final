@@ -27,27 +27,30 @@ import javafx.scene.control.TableView;
 
 public class GUIApp extends Application {
 
-    private static final String DB_URL = "jdbc:oracle:thin:@localhost:1521/xe";
-    private static final String DB_USER = "logan";
-    private static final String DB_PASSWORD = "1234";
+    private static final String DB_HOST = System.getenv().getOrDefault("POSTGRES_HOST", "localhost");
+    private static final String DB_PORT = System.getenv().getOrDefault("POSTGRES_PORT", "5432");
+    private static final String DB_NAME = System.getenv().getOrDefault("POSTGRES_DB", "cit444");
+    private static final String DB_USER = System.getenv().getOrDefault("POSTGRES_USER", "cit444");
+    private static final String DB_PASSWORD = System.getenv().getOrDefault("POSTGRES_PASSWORD", "cit444");
+    private static final String DB_URL = String.format("jdbc:postgresql://%s:%s/%s", DB_HOST, DB_PORT, DB_NAME);
 
     // Add static block to load driver
     static {
         try {
-            // Explicitly load Oracle JDBC driver
-            Class.forName("oracle.jdbc.driver.OracleDriver");
-            System.out.println("Oracle JDBC Driver loaded successfully");
+            // Explicitly load PostgreSQL JDBC driver
+            Class.forName("org.postgresql.Driver");
+            System.out.println("PostgreSQL JDBC Driver loaded successfully");
         } catch (ClassNotFoundException e) {
-            System.err.println("Oracle JDBC Driver not found!");
+            System.err.println("PostgreSQL JDBC Driver not found!");
             e.printStackTrace();
-            throw new RuntimeException("Oracle JDBC Driver not found", e);
+            throw new RuntimeException("PostgreSQL JDBC Driver not found", e);
         }
     }
 
 private boolean testConnection() {
     try {
-        Class.forName("oracle.jdbc.driver.OracleDriver");
-        System.out.println("✓ Oracle JDBC Driver loaded successfully");
+        Class.forName("org.postgresql.Driver");
+        System.out.println("✓ PostgreSQL JDBC Driver loaded successfully");
         
         System.out.println("Attempting connection to: " + DB_URL);
         System.out.println("Username: " + DB_USER);
@@ -57,24 +60,24 @@ private boolean testConnection() {
             
             // Test if we can access the required tables
             DatabaseMetaData meta = connection.getMetaData();
-            Result tables = meta.getTables(null, DB_USER.toUpperCase(), "HOTEL", null);
+            ResultSet tables = meta.getTables(null, null, "hotels", null);
             if (tables.next()) {
-                System.out.println("✓ HOTEL table found");
+                System.out.println("✓ hotels table found");
             } else {
-                System.out.println("✗ HOTEL table not found");
+                System.out.println("✗ hotels table not found");
             }
             
-            tables = meta.getTables(null, DB_USER.toUpperCase(), "RATINGSAVERAGE", null);
+            tables = meta.getTables(null, null, "ratings_average", null);
             if (tables.next()) {
-                System.out.println("✓ RATINGSAVERAGE table found");
+                System.out.println("✓ ratings_average table found");
             } else {
-                System.out.println("✗ RATINGSAVERAGE table not found");
+                System.out.println("✗ ratings_average table not found");
             }
             
             return true;
         }
     } catch (ClassNotFoundException e) {
-        System.err.println("✗ Oracle JDBC Driver not found!");
+        System.err.println("✗ PostgreSQL JDBC Driver not found!");
         e.printStackTrace();
         return false;
     } catch (SQLException e) {
@@ -189,19 +192,19 @@ private boolean testConnection() {
 }
 
     private void loadHotelData() {
-        String sql = "SELECT HOTELID, NAME, CITY, COUNTRY FROM HOTEL ORDER BY NAME";
+        String sql = "SELECT hotel_id, name, city, country FROM hotels ORDER BY name";
         try (Connection connection = DriverManager.getConnection(DB_URL, DB_USER, DB_PASSWORD);
              Statement stmt = connection.createStatement();
              ResultSet rs = stmt.executeQuery(sql)) {
 
-            int totalRows = getTotalRowCount("HOTEL");
+            int totalRows = getTotalRowCount("hotels");
             int currentRow = 0;
 
             while (rs.next()) {
-                int hotelId = rs.getInt("HOTELID");
-                String hotelName = rs.getString("NAME");
-                String city = rs.getString("CITY");
-                String country = rs.getString("COUNTRY");
+                int hotelId = rs.getInt("hotel_id");
+                String hotelName = rs.getString("name");
+                String city = rs.getString("city");
+                String country = rs.getString("country");
 
                 Hotel hotel = new Hotel(hotelId, hotelName, city, country);
                 hotelData.add(hotel);
@@ -221,25 +224,25 @@ private boolean testConnection() {
     }
 
     private void loadRatingsData() {
-        String sql = "SELECT HOTELID, AVG_SERVICE, AVG_PRICE, AVG_ROOM, " +
-                     "AVG_LOCATION, AVG_OVERALL, TOTAL_REVIEWS FROM RATINGSAVERAGE";
+        String sql = "SELECT hotel_id, avg_service, avg_price, avg_room, " +
+                 "avg_location, avg_overall, total_reviews FROM ratings_average";
         try (Connection connection = DriverManager.getConnection(DB_URL, DB_USER, DB_PASSWORD);
              Statement stmt = connection.createStatement();
              ResultSet rs = stmt.executeQuery(sql)) {
 
-            int totalRatings = getTotalRowCount("RATINGSAVERAGE");
+            int totalRatings = getTotalRowCount("ratings_average");
             int currentRating = 0;
 
             System.out.println("Loading ratings data...");
 
             while (rs.next()) {
-                int hotelId = rs.getInt("HOTELID");
-                double serviceScore = rs.getDouble("AVG_SERVICE");
-                double priceScore = rs.getDouble("AVG_PRICE");
-                double roomScore = rs.getDouble("AVG_ROOM");
-                double locationScore = rs.getDouble("AVG_LOCATION");
-                double overallScore = rs.getDouble("AVG_OVERALL");
-                int totalReviews = rs.getInt("TOTAL_REVIEWS");
+                int hotelId = rs.getInt("hotel_id");
+                double serviceScore = rs.getDouble("avg_service");
+                double priceScore = rs.getDouble("avg_price");
+                double roomScore = rs.getDouble("avg_room");
+                double locationScore = rs.getDouble("avg_location");
+                double overallScore = rs.getDouble("avg_overall");
+                int totalReviews = rs.getInt("total_reviews");
 
                 HotelRatings ratings = new HotelRatings(hotelId, serviceScore, priceScore, 
                                                        roomScore, locationScore, overallScore, totalReviews);
@@ -259,13 +262,13 @@ private boolean testConnection() {
     }
 
     private void loadCityData() {
-        String sql = "SELECT DISTINCT CITY FROM HOTEL ORDER BY CITY";
+        String sql = "SELECT DISTINCT city FROM hotels ORDER BY city";
         try (Connection connection = DriverManager.getConnection(DB_URL, DB_USER, DB_PASSWORD);
              Statement stmt = connection.createStatement();
              ResultSet rs = stmt.executeQuery(sql)) {
 
             while (rs.next()) {
-                cityData.add(rs.getString("CITY"));
+                cityData.add(rs.getString("city"));
             }
             System.out.println("✓ Loaded " + cityData.size() + " cities");
 
@@ -275,13 +278,13 @@ private boolean testConnection() {
     }
 
     private void loadCountryData() {
-        String sql = "SELECT DISTINCT COUNTRY FROM HOTEL ORDER BY COUNTRY";
+        String sql = "SELECT DISTINCT country FROM hotels ORDER BY country";
         try (Connection connection = DriverManager.getConnection(DB_URL, DB_USER, DB_PASSWORD);
              Statement stmt = connection.createStatement();
              ResultSet rs = stmt.executeQuery(sql)) {
 
             while (rs.next()) {
-                countryData.add(rs.getString("COUNTRY"));
+                countryData.add(rs.getString("country"));
             }
             System.out.println("✓ Loaded " + countryData.size() + " countries");
 
