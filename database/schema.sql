@@ -1,14 +1,61 @@
 -- CIT444 Hotel Analysis Project - Database Schema
 -- Drop existing tables (if any)
-DROP TABLE ratings CASCADE CONSTRAINTS;
-DROP TABLE review CASCADE CONSTRAINTS;
-DROP TABLE hotel CASCADE CONSTRAINTS;
-DROP TABLE ratingsaverage CASCADE CONSTRAINTS;
+BEGIN
+    EXECUTE IMMEDIATE 'DROP TABLE ratings CASCADE CONSTRAINTS';
+EXCEPTION
+    WHEN OTHERS THEN
+        IF SQLCODE != -942 THEN RAISE; END IF;
+END;
+/
+
+BEGIN
+    EXECUTE IMMEDIATE 'DROP TABLE review CASCADE CONSTRAINTS';
+EXCEPTION
+    WHEN OTHERS THEN
+        IF SQLCODE != -942 THEN RAISE; END IF;
+END;
+/
+
+BEGIN
+    EXECUTE IMMEDIATE 'DROP TABLE hotel CASCADE CONSTRAINTS';
+EXCEPTION
+    WHEN OTHERS THEN
+        IF SQLCODE != -942 THEN RAISE; END IF;
+END;
+/
+
+BEGIN
+    EXECUTE IMMEDIATE 'DROP TABLE ratingsaverage CASCADE CONSTRAINTS';
+EXCEPTION
+    WHEN OTHERS THEN
+        IF SQLCODE != -942 THEN RAISE; END IF;
+END;
+/
 
 -- Drop sequences
-DROP SEQUENCE hotel_seq;
-DROP SEQUENCE review_seq;
-DROP SEQUENCE rating_seq;
+BEGIN
+    EXECUTE IMMEDIATE 'DROP SEQUENCE hotel_seq';
+EXCEPTION
+    WHEN OTHERS THEN
+        IF SQLCODE != -2289 THEN RAISE; END IF;
+END;
+/
+
+BEGIN
+    EXECUTE IMMEDIATE 'DROP SEQUENCE review_seq';
+EXCEPTION
+    WHEN OTHERS THEN
+        IF SQLCODE != -2289 THEN RAISE; END IF;
+END;
+/
+
+BEGIN
+    EXECUTE IMMEDIATE 'DROP SEQUENCE rating_seq';
+EXCEPTION
+    WHEN OTHERS THEN
+        IF SQLCODE != -2289 THEN RAISE; END IF;
+END;
+/
 
 -- Create Hotel table
 CREATE TABLE hotel (
@@ -96,24 +143,6 @@ FROM hotel h
 LEFT JOIN ratingsaverage ra ON h.HOTELID = ra.HOTELID;
 
 -- Create directory object for external files (adjust path as needed)
-CREATE OR REPLACE DIRECTORY ext_dir AS 'C:\CIT444_Final_Project\processed_data';
+CREATE OR REPLACE DIRECTORY ext_dir AS '/app/processed_data';
 -- Note: You may need to adjust this path and grant permissions:
 -- GRANT READ, WRITE ON DIRECTORY ext_dir TO your_username;
-
--- Display table creation confirmation
-BEGIN
-    DBMS_OUTPUT.PUT_LINE('✅ Database schema created successfully!');
-    DBMS_OUTPUT.PUT_LINE('✅ Tables created: hotel, review, ratings, ratingsaverage');
-    DBMS_OUTPUT.PUT_LINE('✅ Sequences created: hotel_seq, review_seq, rating_seq');
-    DBMS_OUTPUT.PUT_LINE('✅ Indexes and view created');
-END;
-/
-
--- Display table counts (should be 0 initially)
-SELECT 'hotel' AS table_name, COUNT(*) AS record_count FROM hotel
-UNION ALL
-SELECT 'review', COUNT(*) FROM review
-UNION ALL
-SELECT 'ratings', COUNT(*) FROM ratings
-UNION ALL
-SELECT 'ratingsaverage', COUNT(*) FROM ratingsaverage;

@@ -25,7 +25,7 @@ def setup_environment():
         "tqdm>=4.60.0",
         "numpy>=1.21.0",
         "sqlalchemy>=1.4.0",
-        "cx_oracle>=8.3.0"
+        "oracledb>=1.4.0"
     ]
     
     for package in requirements:

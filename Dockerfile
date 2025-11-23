@@ -1,37 +1,43 @@
-FROM python:3.11-slim
-
-# Keep Python from writing .pyc files and bufferless stdout
-ENV PYTHONDONTWRITEBYTECODE=1 \
-	PYTHONUNBUFFERED=1 \
-	PIP_ROOT_USER_ACTION=ignore
+FROM postgres:16
 
 WORKDIR /app
 
-# System dependencies for pandas/torch/cx_Oracle
-RUN apt-get update \
-	&& apt-get install -y --no-install-recommends \
-		build-essential \
-		libaio1t64 \
-		git \
-	&& rm -rf /var/lib/apt/lists/*
-
-# Install Python dependencies listed in scripts/setup_environment.py
-RUN pip install --no-cache-dir \
-	pandas>=1.3.0 \
-	nltk>=3.6.0 \
-	transformers>=4.0.0 \
-	torch>=1.9.0 \
-	tqdm>=4.60.0 \
-	numpy>=1.21.0 \
-	sqlalchemy>=1.4.0 \
-	cx_Oracle>=8.3.0
-
-# Copy project code into the image
 COPY . .
 
-# Pre-download the NLTK assets used by main_workflow
-RUN python -m nltk.downloader punkt stopwords wordnet
+RUN apt-get update \
+	&& apt-get install -y --no-install-recommends python3 \
+	&& rm -rf /var/lib/apt/lists/*
 
-# Default command runs the orchestrator script; override for single steps
-# CMD ["python", "scripts/run_project.py"]
-CMD ["python", "scripts/database_manager.py"]
+RUN cat <<'EOF' >/usr/local/bin/run-psql-scripts.sh \
+	&& chmod +x /usr/local/bin/run-psql-scripts.sh
+#!/bin/sh
+set -eu
+
+HOST="${POSTGRES_HOST:-postgres}"
+PORT="${POSTGRES_PORT:-5432}"
+DB="${POSTGRES_DB:-cit444}"
+USER="${POSTGRES_USER:-cit444}"
+export PGPASSWORD="${POSTGRES_PASSWORD:-cit444}"
+
+SQL_DIR="/app/database"
+if [ ! -d "$SQL_DIR" ]; then
+	echo "No database directory found at $SQL_DIR"
+	exit 1
+fi
+
+for sql_file in \
+	"$SQL_DIR/schema_postgres.sql" \
+	"$SQL_DIR/hotel_insertion.sql" \
+	"$SQL_DIR/processed_reviews.sql" \
+	"$SQL_DIR/ratings_insertion.sql"
+do
+	[ -f "$sql_file" ] || continue
+	[ -z "$sql_file" ] && continue
+	echo "========================================"
+	echo "Running $(basename "$sql_file")"
+	echo "========================================"
+	psql "host=$HOST port=$PORT dbname=$DB user=$USER" -v ON_ERROR_STOP=1 -f "$sql_file"
+done
+EOF
+
+CMD ["/usr/local/bin/run-psql-scripts.sh"]

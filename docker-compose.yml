@@ -1,23 +1,33 @@
 version: "3.9"
 services:
-  oracle:
-    image: gvenzl/oracle-xe:18.4.0
+  postgres:
+    image: postgres:16
     environment:
-      ORACLE_PASSWORD: adminpw
+      POSTGRES_DB: cit444
+      POSTGRES_USER: cit444
+      POSTGRES_PASSWORD: cit444
     ports:
-      - "1521:1521"   # expose for local tools if needed
+      - "5432:5432"
     volumes:
-      - oracle-data:/opt/oracle/oradata
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U cit444"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
   cit444final:
     build: .
     depends_on:
-      - oracle
+      postgres:
+        condition: service_healthy
     environment:
-      ORACLE_HOST: oracle
-      ORACLE_PORT: 1521
-      ORACLE_SERVICE: XEPDB1
-      ORACLE_USER: system
-      ORACLE_PASSWORD: adminpw
-    command: ["python", "scripts/database_manager.py"]
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: cit444
+      POSTGRES_USER: cit444
+      POSTGRES_PASSWORD: cit444
+
 volumes:
-  oracle-data:
+  postgres-data:
