@@ -1,6 +1,7 @@
 package Application;
 
 import javafx.application.Application;
+import javafx.application.Platform;
 import javafx.beans.property.SimpleDoubleProperty;
 import javafx.beans.property.SimpleIntegerProperty;
 import javafx.beans.property.SimpleStringProperty;
@@ -21,12 +22,70 @@ import java.sql.*;
 import java.util.HashMap;
 import java.util.Map;
 
+import javafx.scene.control.ListView;
+import javafx.scene.control.TableView;
+
 public class GUIApp extends Application {
 
-    private static final String DB_URL = "jdbc:oracle:thin:@localhost:1521:xe";
-    private static final String DB_USER = "system";
-    private static final String DB_PASSWORD = "jm64108034";
+    private static final String DB_URL = "jdbc:oracle:thin:@localhost:1521/xe";
+    private static final String DB_USER = "logan";
+    private static final String DB_PASSWORD = "1234";
 
+    // Add static block to load driver
+    static {
+        try {
+            // Explicitly load Oracle JDBC driver
+            Class.forName("oracle.jdbc.driver.OracleDriver");
+            System.out.println("Oracle JDBC Driver loaded successfully");
+        } catch (ClassNotFoundException e) {
+            System.err.println("Oracle JDBC Driver not found!");
+            e.printStackTrace();
+            throw new RuntimeException("Oracle JDBC Driver not found", e);
+        }
+    }
+
+private boolean testConnection() {
+    try {
+        Class.forName("oracle.jdbc.driver.OracleDriver");
+        System.out.println("✓ Oracle JDBC Driver loaded successfully");
+        
+        System.out.println("Attempting connection to: " + DB_URL);
+        System.out.println("Username: " + DB_USER);
+        
+        try (Connection connection = DriverManager.getConnection(DB_URL, DB_USER, DB_PASSWORD)) {
+            System.out.println("✓ Database connection successful!");
+            
+            // Test if we can access the required tables
+            DatabaseMetaData meta = connection.getMetaData();
+            Result tables = meta.getTables(null, DB_USER.toUpperCase(), "HOTEL", null);
+            if (tables.next()) {
+                System.out.println("✓ HOTEL table found");
+            } else {
+                System.out.println("✗ HOTEL table not found");
+            }
+            
+            tables = meta.getTables(null, DB_USER.toUpperCase(), "RATINGSAVERAGE", null);
+            if (tables.next()) {
+                System.out.println("✓ RATINGSAVERAGE table found");
+            } else {
+                System.out.println("✗ RATINGSAVERAGE table not found");
+            }
+            
+            return true;
+        }
+    } catch (ClassNotFoundException e) {
+        System.err.println("✗ Oracle JDBC Driver not found!");
+        e.printStackTrace();
+        return false;
+    } catch (SQLException e) {
+        System.err.println("✗ Database connection failed!");
+        System.err.println("SQL State: " + e.getSQLState());
+        System.err.println("Error Code: " + e.getErrorCode());
+        System.err.println("Message: " + e.getMessage());
+        e.printStackTrace();
+        return false;
+    }
+}
     private ObservableList<Hotel> hotelData = FXCollections.observableArrayList();
     private ObservableList<String> cityData = FXCollections.observableArrayList();
     private ObservableList<String> countryData = FXCollections.observableArrayList();
@@ -83,47 +142,51 @@ public class GUIApp extends Application {
     }
 
     private void loadDataInBackground(Stage primaryStage) {
-        Task<Void> loadDataTask = new Task<Void>() {
-            @Override
-            protected Void call() throws Exception {
-                updateMessage("Loading hotel data...");
-                loadHotelData();
-
-                updateMessage("Loading city data...");
-                loadCityData();
-
-                updateMessage("Loading country data...");
-                loadCountryData();
-
-                updateMessage("Loading ratings data...");
-                loadRatingsData();
-
-                return null;
+    Task<Void> loadDataTask = new Task<Void>() {
+        @Override
+        protected Void call() throws Exception {
+            // Test connection first
+            if (!testConnection()) {
+                throw new RuntimeException("Database connection failed");
             }
 
-            @Override
-            protected void succeeded() {
-                super.succeeded();
-                initializeMainGUI(primaryStage);
-            }
+            updateMessage("Loading hotel data...");
+            loadHotelData();
 
-            @Override
-            protected void failed() {
-                super.failed();
-                showErrorAlert("Data loading failed: " + getException().getMessage());
-            }
-            
-            @Override
-            protected void updateMessage(String message) {
-                super.updateMessage(message);
-                if (loadingLabel != null) {
-                    loadingLabel.setText(message);
-                }
-            }
-        };
+            updateMessage("Loading city data...");
+            loadCityData();
 
-        new Thread(loadDataTask).start();
-    }
+            updateMessage("Loading country data...");
+            loadCountryData();
+
+            updateMessage("Loading ratings data...");
+            loadRatingsData();
+
+            return null;
+        }
+
+        @Override
+        protected void succeeded() {
+            super.succeeded();
+            Platform.runLater(() -> initializeMainGUI(primaryStage));
+        }
+
+        @Override
+        protected void failed() {
+            super.failed();
+            Platform.runLater(() -> showErrorAlert("Data loading failed: " + getException().getMessage()));
+        }
+    };
+
+    // Bind the loading label to the task message
+    loadDataTask.messageProperty().addListener((obs, oldMsg, newMsg) -> {
+        if (newMsg != null) {
+            Platform.runLater(() -> loadingLabel.setText(newMsg));
+        }
+    });
+
+    new Thread(loadDataTask).start();
+}
 
     private void loadHotelData() {
         String sql = "SELECT HOTELID, NAME, CITY, COUNTRY FROM HOTEL ORDER BY NAME";
