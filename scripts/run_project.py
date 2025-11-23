@@ -5,7 +5,6 @@ Run this file to execute the entire project pipeline
 
 import subprocess
 import sys
-import os
 from pathlib import Path
 
 class ProjectRunner:
