@@ -1,135 +1,119 @@
 -- CIT444 Hotel Analysis - Ratings Data Insertion
 SET SERVEROUTPUT ON;
 SET FEEDBACK ON;
-SET VERIFY OFF;
 
 DECLARE
-    fh_ratings   UTL_FILE.FILE_TYPE;
-    v_line       VARCHAR2(4000);
+    fh_ratings UTL_FILE.FILE_TYPE;
+    v_line VARCHAR2(4000);
     
     -- Rating fields
-    v_reviewid   ratings.IDREVIEW%TYPE;
-    v_hotelid    ratings.HOTELID%TYPE;
-    v_service    ratings.SERVICE_SCORE%TYPE;
-    v_price      ratings.PRICE_SCORE%TYPE;
-    v_room       ratings.ROOM_SCORE%TYPE;
-    v_location   ratings.LOCATION_SCORE%TYPE;
-    v_overall    ratings.OVERALL_SCORE%TYPE;
+    v_reviewid ratings.IDREVIEW%TYPE;
+    v_hotelid ratings.HOTELID%TYPE;
+    v_service ratings.SERVICE_SCORE%TYPE;
+    v_price ratings.PRICE_SCORE%TYPE;
+    v_room ratings.ROOM_SCORE%TYPE;
+    v_location ratings.LOCATION_SCORE%TYPE;
+    v_overall ratings.OVERALL_SCORE%TYPE;
     
     v_rating_count NUMBER := 0;
-    v_error_count  NUMBER := 0;
-    v_total_lines  NUMBER := 0;
-    v_batch_count  NUMBER := 0;
+    v_error_count NUMBER := 0;
+    v_total_lines NUMBER := 0;
 
 BEGIN
     DBMS_OUTPUT.PUT_LINE('Starting ratings data insertion...');
     DBMS_OUTPUT.PUT_LINE('Reading from: final_ratings.csv');
-    DBMS_OUTPUT.PUT_LINE('=' || RPAD('=', 50, '='));
+    DBMS_OUTPUT.PUT_LINE('===================================================');
 
-    -- Count total lines first
+    -- Open file
     BEGIN
-        fh_ratings := UTL_FILE.FOPEN('EXT_DIR', 'final_ratings.csv', 'r');
-        
-        -- Skip header
-        UTL_FILE.GET_LINE(fh_ratings, v_line);
-        
-        WHILE TRUE LOOP
-            BEGIN
-                UTL_FILE.GET_LINE(fh_ratings, v_line);
-                v_total_lines := v_total_lines + 1;
-            EXCEPTION
-                WHEN NO_DATA_FOUND THEN EXIT;
-            END;
-        END LOOP;
-        
-        UTL_FILE.FCLOSE(fh_ratings);
-        DBMS_OUTPUT.PUT_LINE('Total ratings to process: ' || v_total_lines);
+        fh_ratings := UTL_FILE.FOPEN('EXT_DIR', 'final_ratings.csv', 'R', 32767);
+        DBMS_OUTPUT.PUT_LINE('File opened successfully');
     EXCEPTION
         WHEN OTHERS THEN
-            DBMS_OUTPUT.PUT_LINE('Error counting lines: ' || SQLERRM);
-            v_total_lines := 0;
+            DBMS_OUTPUT.PUT_LINE('Error opening file: ' || SQLERRM);
+            RETURN;
     END;
 
-    -- Process ratings data
+    -- Skip header row
     BEGIN
-        fh_ratings := UTL_FILE.FOPEN('EXT_DIR', 'final_ratings.csv', 'r');
-        
-        -- Skip header row
+        UTL_FILE.GET_LINE(fh_ratings, v_line);
+        DBMS_OUTPUT.PUT_LINE('Skipped header row');
+    EXCEPTION
+        WHEN OTHERS THEN
+            DBMS_OUTPUT.PUT_LINE('Error reading header: ' || SQLERRM);
+    END;
+
+    -- Process data rows
+    LOOP
         BEGIN
             UTL_FILE.GET_LINE(fh_ratings, v_line);
-            DBMS_OUTPUT.PUT_LINE('Header skipped.');
         EXCEPTION
-            WHEN OTHERS THEN NULL;
+            WHEN NO_DATA_FOUND THEN
+                EXIT;
+            WHEN OTHERS THEN
+                DBMS_OUTPUT.PUT_LINE('Error reading line: ' || SQLERRM);
+                EXIT;
         END;
 
-        -- Process data rows
-        LOOP
-            BEGIN
-                UTL_FILE.GET_LINE(fh_ratings, v_line);
-            EXCEPTION
-                WHEN NO_DATA_FOUND THEN EXIT;
-                WHEN OTHERS THEN
-                    DBMS_OUTPUT.PUT_LINE('Error reading line: ' || SQLERRM);
-                    EXIT;
-            END;
+        BEGIN
+            -- Parse CSV (REVIEWID,HOTELID,SERVICE,PRICE,ROOM,LOCATION,OVERALL)
+            v_reviewid := TO_NUMBER(REGEXP_SUBSTR(v_line, '^([^,]+)', 1, 1, NULL, 1));
+            v_hotelid := TO_NUMBER(REGEXP_SUBSTR(v_line, '^[^,]*,([^,]+)', 1, 1, NULL, 1));
+            v_service := TO_NUMBER(REGEXP_SUBSTR(v_line, '^[^,]*,[^,]*,([^,]+)', 1, 1, NULL, 1));
+            v_price := TO_NUMBER(REGEXP_SUBSTR(v_line, '^[^,]*,[^,]*,[^,]*,([^,]+)', 1, 1, NULL, 1));
+            v_room := TO_NUMBER(REGEXP_SUBSTR(v_line, '^[^,]*,[^,]*,[^,]*,[^,]*,([^,]+)', 1, 1, NULL, 1));
+            v_location := TO_NUMBER(REGEXP_SUBSTR(v_line, '^[^,]*,[^,]*,[^,]*,[^,]*,[^,]*,([^,]+)', 1, 1, NULL, 1));
+            v_overall := TO_NUMBER(REGEXP_SUBSTR(v_line, '^[^,]*,[^,]*,[^,]*,[^,]*,[^,]*,[^,]*,([^,]+)', 1, 1, NULL, 1));
 
-            BEGIN
-                -- Parse CSV line (REVIEWID,HOTELID,SERVICE,PRICE,ROOM,LOCATION,OVERALL)
-                v_reviewid := TO_NUMBER(REGEXP_SUBSTR(v_line, '^([^,]+)', 1, 1, NULL, 1));
-                v_hotelid := TO_NUMBER(REGEXP_SUBSTR(v_line, '^[^,]*,([^,]+)', 1, 1, NULL, 1));
-                v_service := TO_NUMBER(REGEXP_SUBSTR(v_line, '^[^,]*,[^,]*,([^,]+)', 1, 1, NULL, 1));
-                v_price := TO_NUMBER(REGEXP_SUBSTR(v_line, '^[^,]*,[^,]*,[^,]*,([^,]+)', 1, 1, NULL, 1));
-                v_room := TO_NUMBER(REGEXP_SUBSTR(v_line, '^[^,]*,[^,]*,[^,]*,[^,]*,([^,]+)', 1, 1, NULL, 1));
-                v_location := TO_NUMBER(REGEXP_SUBSTR(v_line, '^[^,]*,[^,]*,[^,]*,[^,]*,[^,]*,([^,]+)', 1, 1, NULL, 1));
-                v_overall := TO_NUMBER(REGEXP_SUBSTR(v_line, '^[^,]*,[^,]*,[^,]*,[^,]*,[^,]*,[^,]*,([^,]+)', 1, 1, NULL, 1));
-
-                -- Validate data
-                IF v_reviewid IS NOT NULL AND v_hotelid IS NOT NULL THEN
-                    INSERT INTO ratings (
-                        RATINGID, IDREVIEW, HOTELID, 
-                        SERVICE_SCORE, PRICE_SCORE, ROOM_SCORE, 
-                        LOCATION_SCORE, OVERALL_SCORE
-                    ) VALUES (
-                        rating_seq.NEXTVAL, v_reviewid, v_hotelid,
-                        v_service, v_price, v_room, v_location, v_overall
-                    );
+            -- Validate data
+            IF v_reviewid IS NOT NULL AND v_hotelid IS NOT NULL THEN
+                -- Check if rating already exists
+                DECLARE
+                    v_exists NUMBER;
+                BEGIN
+                    SELECT COUNT(*) INTO v_exists FROM ratings WHERE IDREVIEW = v_reviewid;
                     
-                    v_rating_count := v_rating_count + 1;
-                    v_batch_count := v_batch_count + 1;
-                    
-                    -- Commit in batches of 100
-                    IF v_batch_count >= 100 THEN
-                        COMMIT;
-                        v_batch_count := 0;
-                        DBMS_OUTPUT.PUT_LINE('Committed batch. Processed ' || v_rating_count || ' ratings...');
+                    IF v_exists = 0 THEN
+                        INSERT INTO ratings (
+                            RATINGID, IDREVIEW, HOTELID, 
+                            SERVICE_SCORE, PRICE_SCORE, ROOM_SCORE, 
+                            LOCATION_SCORE, OVERALL_SCORE
+                        ) VALUES (
+                            rating_seq.NEXTVAL, v_reviewid, v_hotelid,
+                            v_service, v_price, v_room, v_location, v_overall
+                        );
+                        
+                        v_rating_count := v_rating_count + 1;
+                        
+                        -- Commit in batches
+                        IF MOD(v_rating_count, 100) = 0 THEN
+                            COMMIT;
+                            DBMS_OUTPUT.PUT_LINE('Committed ' || v_rating_count || ' ratings...');
+                        END IF;
+                    ELSE
+                        DBMS_OUTPUT.PUT_LINE('Skipping duplicate rating for review: ' || v_reviewid);
+                        v_error_count := v_error_count + 1;
                     END IF;
-                    
-                ELSE
-                    DBMS_OUTPUT.PUT_LINE('Skipping invalid rating record: ' || v_line);
-                    v_error_count := v_error_count + 1;
-                END IF;
+                END;
+                
+            ELSE
+                DBMS_OUTPUT.PUT_LINE('Invalid data in line: ' || v_line);
+                v_error_count := v_error_count + 1;
+            END IF;
 
-            EXCEPTION
-                WHEN OTHERS THEN
-                    DBMS_OUTPUT.PUT_LINE('Error inserting rating: ' || SQLERRM || ' | Line: ' || v_line);
-                    v_error_count := v_error_count + 1;
-            END;
-        END LOOP;
+        EXCEPTION
+            WHEN DUP_VAL_ON_INDEX THEN
+                DBMS_OUTPUT.PUT_LINE('Duplicate rating (constraint): ' || v_reviewid);
+                v_error_count := v_error_count + 1;
+            WHEN OTHERS THEN
+                DBMS_OUTPUT.PUT_LINE('Error inserting rating: ' || SQLERRM || ' | Line: ' || v_line);
+                v_error_count := v_error_count + 1;
+        END;
+    END LOOP;
 
-        -- Final commit
-        COMMIT;
-        UTL_FILE.FCLOSE(fh_ratings);
-
-    EXCEPTION
-        WHEN OTHERS THEN
-            DBMS_OUTPUT.PUT_LINE('Error processing ratings file: ' || SQLERRM);
-            BEGIN
-                UTL_FILE.FCLOSE(fh_ratings);
-            EXCEPTION
-                WHEN OTHERS THEN NULL;
-            END;
-            RAISE;
-    END;
+    -- Final commit
+    COMMIT;
+    UTL_FILE.FCLOSE(fh_ratings);
 
     -- Calculate and insert average ratings
     DBMS_OUTPUT.PUT_LINE('Calculating average ratings...');
@@ -159,7 +143,7 @@ BEGIN
             ROLLBACK;
     END;
 
-    DBMS_OUTPUT.PUT_LINE('=' || RPAD('=', 50, '='));
+    DBMS_OUTPUT.PUT_LINE('===================================================');
     DBMS_OUTPUT.PUT_LINE('RATINGS DATA INSERTION COMPLETED');
     DBMS_OUTPUT.PUT_LINE('Total ratings inserted: ' || v_rating_count);
     DBMS_OUTPUT.PUT_LINE('Total errors: ' || v_error_count);
@@ -169,16 +153,20 @@ EXCEPTION
     WHEN OTHERS THEN
         DBMS_OUTPUT.PUT_LINE('Unexpected error: ' || SQLERRM);
         ROLLBACK;
-        RAISE;
+        BEGIN
+            UTL_FILE.FCLOSE(fh_ratings);
+        EXCEPTION
+            WHEN OTHERS THEN NULL;
+        END;
 END;
 /
 
 -- Verify results
-SELECT COUNT(*) AS "Total Ratings" FROM ratings;
-SELECT COUNT(*) AS "Hotels with Average Ratings" FROM ratingsaverage;
+SELECT COUNT(*) AS total_ratings FROM ratings;
+SELECT COUNT(*) AS hotels_with_average_ratings FROM ratingsaverage;
 
 -- Display sample averages
-SELECT * FROM ratingsaverage ORDER BY AVG_OVERALL DESC FETCH FIRST 10 ROWS ONLY;
+SELECT * FROM ratingsaverage ORDER BY AVG_OVERALL DESC FETCH FIRST 5 ROWS ONLY;
 
 -- Display view sample
 SELECT * FROM hotel_ratings_view WHERE ROWNUM <= 5;
